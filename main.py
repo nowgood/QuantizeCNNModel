@@ -31,12 +31,11 @@ import torch
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
-
-from net import quantize_net
-from utils.train import train
+from utils.train_val import train, save_checkpoint, validate
 from utils.data_loader import load_train_data, load_val_data
-from utils.val import validate
 from quantize import quantize_guided
+from net import net_quantize_activation, net_quantize_weight
+from tensorboardX import SummaryWriter
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -48,16 +47,15 @@ parser.add_argument('--data', metavar='DIR', help='path to dataset', required=Tr
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
-parser.add_argument('-j', '--workers', default=16, type=int, metavar='N',  # 修改为电脑cpu支持的线程数
+parser.add_argument('--workers', default=16, type=int, metavar='N',  # 修改为电脑cpu支持的线程数
                     help='number of data loading workers (default: 16)')
 parser.add_argument('--epochs', default=35, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=1, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('--batch_size', default=128, type=int,
+parser.add_argument('--batch-size', default=128, type=int,
                     metavar='N', help='mini-batch size (default: 128)')
-parser.add_argument('--lr', default=0.001, type=float,  # 论文中初始学习率 0.001, 每 10 epoch 除以 10
-                    help='initial README.md rate')
+
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
@@ -77,37 +75,38 @@ parser.add_argument('--seed', default=None, type=int,
                     help='seed for initializing training. ')
 parser.add_argument('--gpu', default=None, type=int, help='GPU id to use.')
 
-parser.add_argument('--device_ids', default=[0], type=int, nargs='+',
+parser.add_argument('--device-ids', default=[0], type=int, nargs='+',
                     help='GPU ids to be used e.g 0 1 2 3')
-parser.add_argument('--weight_quantized', default='', type=str, help="quantize weight model path")
-parser.add_argument('--checkpoint', default='model/', type=str, help='directory to save trained model', required=True)
+parser.add_argument('--weight-quantized', default='', type=str, help="quantize weight model path")
+parser.add_argument('--save-dir', default='model', type=str, help='directory to save trained model', required=True)
 parser.add_argument('--mode', default=3, type=int, help='model quantized mode', required=True)
-
+parser.add_argument('--norm', default=2, type=int, help='feature map norm, default 2')
 # 论文中初始学习率 0.001, 每 10 epoch 除以 10, 这在只量化权重时候可以
 # 在同时量化权重和激活时, 当使用0.001时, 我们可以观测到权重的持续上升
 # 或许可以将初始学习率调为 0.01, 甚至 0.1
 # guidance 方法中, 全精度模型的的学习率要小一些, 模型已经训练的很好了, 微调而已
 # 不过来低精度模型的学习率可以调高一点
-parser.add_argument('--fulllr', default=0.001, type=float,
-                    metavar='FULLLR', help='initial high prec model learning rate')
+parser.add_argument('--lr', default=0.001, type=float,  # 论文中初始学习率 0.001, 每 10 epoch 除以 10
+                    help='initial learning rate')
+parser.add_argument('--rate', default=1, type=int,
+                    help='guide training method, full_lr = low_lr * rate ')
 
-parser.add_argument('--lowlr', default=0.001, type=float,
-                    metavar='LOWLR', help='initial low prec model learning rate')
-parser.add_argument('--balance', default=10, type=float, help='balancing parameter (default: 2)')
-parser.add_argument('--lr_step', default=10, type=int, help='learning rate step scheduler')
+parser.add_argument('--balance', default=2, type=float, help='balancing parameter (default: 2)')
+parser.add_argument('--lr-step', default=10, type=int, help='learning rate step scheduler')
 
 
 args = parser.parse_args()
+best_prec1 = 0
 
 
 def main():
-    print("=> arch: {}\n=> init_lr: {}\n=> momentum:{}\n=> weight_decay: {}\n=> batch-size: {}\n".format(
-        args.arch, args.lr, args.momentum, args.weight_decay, args.batch_size,))
-
-    if args.checkpoint:
-        if not os.path.exists(args.checkpoint):
-            os.makedirs(args.checkpoint)
-        print("=> checkpoint directory: {}".format(args.checkpoint))
+    global best_prec1
+    print("=> arch: {}\n"
+          "=> init_lr: {}\n"
+          "=> momentum:{}\n"
+          "=> weight_decay: {}\n"
+          "=> batch-size: {}\n".format(
+           args.arch, args.lr, args.momentum, args.weight_decay, args.batch_size,))
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -130,17 +129,17 @@ def main():
 
     # 根据训练模式加载训练模型
     if args.mode == 0:
-        print("=> Training mode {}: full precision training from scratch".format(args.mode))
+        print("=> Training mode {}: full precision training from scratch\n".format(args.mode))
         model = models.__dict__[args.arch]()
 
     elif args.mode == 1:
-        print("=> Training mode {}: only quantize weight".format(args.mode))
+        print("=> Training mode {}: only quantize weight\n".format(args.mode))
         print("=> loading ImageNet pre-trained model {}".format(args.arch))
-        model = models.__dict__[args.arch](pretrained=True)
+        model = net_quantize_weight.resnet18(pretrained=True)
 
     elif args.mode == 2:
-        print("=> Training mode {}: quantize activation using quantized weight to init model".format(args.mode))
-        model = models.__dict__[args.arch]()
+        print("=> Training mode {}: quantize activation using quantized weight to init model\n".format(args.mode))
+        model = net_quantize_activation.resnet18()
         if os.path.isfile(args.weight_quantized):
             print("=> Loading weight quantized model '{}'".format(args.weight_quantized))
             model_dict = model.state_dict()
@@ -154,10 +153,10 @@ def main():
             return
 
     elif args.mode == 3:
-        print("=> Training mode {}: joint quantize weight and activation".format(args.mode))
+        print("=> Training mode {}: joint quantize weight and activation\n".format(args.mode))
 
         # 使用预训练的ResNet18来同时量化网络权重和激活
-        model = quantize_net.resnet18()
+        model = net_quantize_activation.resnet18()
         print("=> Loading imageNet pre-trained model '{}'".format(args.arch))
         # 获取预训练模型参数
         model_dict = model.state_dict()
@@ -167,7 +166,7 @@ def main():
         model.load_state_dict(model_dict)
 
     elif args.mode == 4:
-        print("=> Training mode {}: guided quantize weight and activation from pre-trained "
+        print("=> Training mode {}: guided quantize weight and activation from pre-trained\n "
               "imageNet model {} ".format(args.mode, args.arch))
 
         quantize_guided.guided(args)
@@ -204,14 +203,16 @@ def main():
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
-            print("Loading checkpoint '{}'".format(args.resume))
+            print("=> loading checkpoint '{}'".format(args.resume))
             checkpoint = torch.load(args.resume)
+            args.start_epoch = checkpoint['epoch']
+            best_prec1 = checkpoint['best_prec1']
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
-            args.start_epoch = checkpoint['epoch']
-            print("Loaded checkpoint '{}' (epoch {})".format(args.resume, checkpoint['epoch']))
+            print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(args.resume, checkpoint['epoch']))
         else:
-            print("No checkpoint found at '{}'".format(args.resume))
+            print("=> no checkpoint found at '{}'".format(args.resume))
 
     cudnn.benchmark = True
 
@@ -236,7 +237,31 @@ def main():
         return
 
     train_loader, train_sampler = load_train_data(args.data, args.batch_size, args.workers, args.distributed)
-    train(args, model, criterion, optimizer, lr_scheduler, train_loader, train_sampler, val_loader)
+
+    summary_writer = SummaryWriter(args.save_dir)
+    for epoch in range(args.start_epoch, args.epochs):
+        if args.distributed:
+            train_sampler.set_epoch(epoch)
+        lr_scheduler.step()
+
+        # train for one epoch
+        train(model, train_loader, criterion, optimizer, args.gpu, epoch, summary_writer)
+
+        # evaluate on validation set
+        prec1 = validate(model, val_loader, criterion, args.gpu, epoch, summary_writer)
+
+        # remember best prec@1 and save checkpoint
+        is_best = prec1 > best_prec1
+        best_prec1 = max(prec1, best_prec1)
+        save_checkpoint({
+            'epoch': epoch + 1,
+            'arch': args.arch,
+            'state_dict': model.state_dict(),
+            'best_prec1': best_prec1,
+            'optimizer': optimizer.state_dict(),
+        }, is_best, args.save_dir)
+
+    summary_writer.close()
 
 
 if __name__ == '__main__':

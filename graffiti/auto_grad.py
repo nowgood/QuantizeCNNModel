@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from net import simple_net
 import torch.optim as optim
-from quantize.quantize_fn import QuantizeWeightOrActivation
+from quantize.quantize_function import QuantizeWeightOrActivation
 import queue
 
 qw = QuantizeWeightOrActivation()
@@ -55,7 +55,7 @@ def weights_update():
     print("手动求梯度\n", hand_grad, "\n")   # 卷积核的面积=3x3=9, y=(x*x).mean(), y'=2x/9
 
     # fn_w = modify_weights(kernel.weight)
-    fn_w = qw._quantize_weights_bias(kernel.weight)
+    fn_w = qw.quantize_weights_bias(kernel.weight)
     fn_w.sum().backward()
 
     square_weight_grad = kernel.weight.grad.data.clone()

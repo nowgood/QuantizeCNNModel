@@ -68,7 +68,7 @@ python guided.py \
 
 ### 量化权重
 
-**单机多卡训练**, 如： 使用 8 个GPU的后 4 个GPU来训练25个epoch
+单机多卡训练, 如： 使用 8 个GPU的后 4 个GPU来训练25个epoch
 
 ```
 CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
@@ -94,11 +94,11 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
     --epochs 35 \
     --batch_size 1024\
     --device_ids 0 1 2 3 \
-    --lr 0.001 \
+    --lr 0.01 \
     --weight_quantized model/W_lr1e-4_epoch2/model_best.pth.tar \
-    --checkpoint model/AafterW_lr1e-3_epoch35 \
+    --checkpoint model/AafterW_lr1e-2_epoch35 \
     --data /home/user/wangbin/datasets/ILSVRC2012  \
-    |tee  model/AafterW_lr1e-3_epoch35.log 2>&1
+    |tee  model/AafterW_lr1e-2_epoch35.log 2>&1
 ```
 
 **resume**
@@ -145,7 +145,6 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
     --workers 16 \
     --epochs  50 \
     --batch-size 512 \
-    --pretrained  \
     --device_ids 0 1 2 3 \
     --balance 2 \
     --lowlr 0.001 \
@@ -153,4 +152,26 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
     --data /home/user/wangbin/datasets/ILSVRC2012  \
     --checkpoint /home/user/wangbin/quantizednn/model/WandA_guided_balance2_lr1e-3_lr1e-3_epoch50 \
     | tee model/log.WandA_guided_balance2_lr1e-3_lr1e-3_epoch50 2>&1 
+```
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
+    --arch resnet18
+    --mode 4 \
+    --workers 16 \
+    --epochs  50 \
+    --batch-size 512 \
+    --device_ids 0 1 2 3 \
+    --balance 2 \
+    --lowlr 0.001 \
+    --fulllr 0.001 \
+    --norm 2 \
+    --data /home/user/wangbin/datasets/ILSVRC2012  \
+    --checkpoint /home/user/wangbin/quantizednn/model/WandA_guided_balance2_lr1e-3_lr1e-3_epoch50 \
+    | tee model/log.WandA_guided_balance2_lr1e-3_lr1e-3_epoch50 2>&1 
+```
+
+```bash
+--weight-quantized
+/home/wangbin/Desktop/uisee/model_quantize/w_lr1e-4_epoch2_QCONV/checkpoint.pth.tar
 ```
