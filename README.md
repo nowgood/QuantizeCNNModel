@@ -52,51 +52,36 @@ tensorboard --logdir model/xxx/
        4. guided quantize weight and activation from pre-trained imageNet model
 
 
-**单卡训练**
-
-```
-python guided.py \
-    --arch resnet18 \
-    --mode 3 \
-    --workers 16 \
-    --epochs 35 \
-    --checkpoint model/WandA_lr0.001_scalar2.5 \
-    --lr 0.001 \
-    --data /media/wangbin/8057840b-9a1e-48c9-aa84-d353a6ba1090/ImageNet_ILSVRC2012/ILSVRC2012 \
-    > log/WandA_lr_0.001_scalar2.5_20180719.log 2>&1 &
-```
-
 ### 量化权重
 
 单机多卡训练, 如： 使用 8 个GPU的后 4 个GPU来训练25个epoch
 
 ```
 CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
-    --arch resnet18 \
     --mode 1 \
     --workers 16 \
-    --epochs 25 \
-    --batch_size 1024\
-    --device_ids 0 1 2 3 \
+    --epochs 5 \
+    --batch-size 1024\
+    --device-ids 0 1 2 3 \
     --lr 0.0001 \
-    --checkpoint model/W_lr0.0001_epoch25 \
+    --lr-step 2 \
+    --save-dir model/W_lr1e-4_epoch5 \
     --data /home/user/wangbin/datasets/ILSVRC2012  \
-    |tee  model/W_lr_1e-4_epoch25.log 2>&1
+    |tee  model/W_lr_1e-4_epoch5.log 2>&1
 ``` 
 
 ### 使用量化权重的参数来初始化量化激活的网络
 
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
-    --arch resnet18 \
     --mode 2 \
     --workers 16 \
     --epochs 35 \
-    --batch_size 1024\
-    --device_ids 0 1 2 3 \
-    --lr 0.01 \
-    --weight_quantized model/W_lr1e-4_epoch2/model_best.pth.tar \
-    --checkpoint model/AafterW_lr1e-2_epoch35 \
+    --batch-size 1024\
+    --device-ids 0 1 2 3 \
+    --lr 0.001 \
+    --weight-quantized model/W_lr1e-4_epoch2/model_best.pth.tar \
+    --save-dir model/AafterW_lr1e-2_epoch35 \
     --data /home/user/wangbin/datasets/ILSVRC2012  \
     |tee  model/AafterW_lr1e-2_epoch35.log 2>&1
 ```
@@ -105,18 +90,17 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
 
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
-    --arch resnet18 \
     --mode 2 \
     --workers 16 \
     --epochs 35 \
-    --batch_size 1024\
-    --device_ids 0 1 2 3 \
+    --batch-size 1024\
+    --device-ids 0 1 2 3 \
     --lr 0.001 \
     --resume model/AafterW_lr1e-3_epoch35/checkpoint.pth.tar \
-    --weight_quantized model/W_lr1e-4_epoch2/model_best.pth.tar \
-    --checkpoint model/AafterW_lr1e-3_epoch35 \
+    --weight-quantized model/W_lr1e-4_epoch2/model_best.pth.tar \
+    --save-dir model/AafterW_lr1e-3_epoch35 \
     --data /home/user/wangbin/datasets/ILSVRC2012  \
-    |tee  model/AafterW_lr1e-3_epoch35.log 2>&1
+    | tee  model/AafterW_lr1e-3_epoch35.log 2>&1
 ```
 
 ### 同时量化权重和激活
@@ -128,50 +112,28 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 python guided.py \
     --workers 16 \
     --epochs  35 \
     --batch-size 800 \
-    --pretrained \
-    --device_ids 0 1 2 3 \
-    --lr 0.01 \
+    --device-ids 0 1 2 3 \
+    --lr 0.001 \
+    --lr-step 15 \
     --data /home/user/wangbin/datasets/ILSVRC2012  \
-    --checkpoint model/AandW_lr0.01_epoch35 \
+    --save-dir model/AandW_lr0.01_epoch35 \
     | tee AandW_lr0.01_epoch35.log 2>&1 
 ```
 
 ### 使用 guidance 信号来同时量化权重和激活
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
-    --arch resnet18
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python main.py \
     --mode 4 \
-    --workers 16 \
-    --epochs  50 \
-    --batch-size 512 \
-    --device_ids 0 1 2 3 \
+    --workers 32 \
+    --epochs  45 \
+    --batch-size 1024 \
+    --device-ids 0 1 2 3 4 5 6 7\
     --balance 2 \
-    --lowlr 0.001 \
-    --fulllr 0.001 \
+    --lr 0.001 \
+    --rate 1 \
+    --norm 1 \
     --data /home/user/wangbin/datasets/ILSVRC2012  \
-    --checkpoint /home/user/wangbin/quantizednn/model/WandA_guided_balance2_lr1e-3_lr1e-3_epoch50 \
-    | tee model/log.WandA_guided_balance2_lr1e-3_lr1e-3_epoch50 2>&1 
-```
-
-```bash
-CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
-    --arch resnet18
-    --mode 4 \
-    --workers 16 \
-    --epochs  50 \
-    --batch-size 512 \
-    --device_ids 0 1 2 3 \
-    --balance 2 \
-    --lowlr 0.001 \
-    --fulllr 0.001 \
-    --norm 2 \
-    --data /home/user/wangbin/datasets/ILSVRC2012  \
-    --checkpoint /home/user/wangbin/quantizednn/model/WandA_guided_balance2_lr1e-3_lr1e-3_epoch50 \
-    | tee model/log.WandA_guided_balance2_lr1e-3_lr1e-3_epoch50 2>&1 
-```
-
-```bash
---weight-quantized
-/home/wangbin/Desktop/uisee/model_quantize/w_lr1e-4_epoch2_QCONV/checkpoint.pth.tar
+    --save-dir /home/user/wangbin/quantizednn/model/AandW_guided_balance2_lr1e-3_lr1e-3_epoch45 \
+    | tee model/log.WandA_guided_balance2_lr1e-3_lr1e-3_epoch50_qconv 2>&1 
 ```

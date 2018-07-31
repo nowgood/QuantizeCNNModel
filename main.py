@@ -80,7 +80,8 @@ parser.add_argument('--device-ids', default=[0], type=int, nargs='+',
 parser.add_argument('--weight-quantized', default='', type=str, help="quantize weight model path")
 parser.add_argument('--save-dir', default='model', type=str, help='directory to save trained model', required=True)
 parser.add_argument('--mode', default=3, type=int, help='model quantized mode', required=True)
-parser.add_argument('--norm', default=2, type=int, help='feature map norm, default 2')
+parser.add_argument('--norm', default=1, type=int, help='feature map norm, default 1')
+parser.add_argument('--balance', default=2, type=float, help='balancing parameter (default: 2)')
 # 论文中初始学习率 0.001, 每 10 epoch 除以 10, 这在只量化权重时候可以
 # 在同时量化权重和激活时, 当使用0.001时, 我们可以观测到权重的持续上升
 # 或许可以将初始学习率调为 0.01, 甚至 0.1
@@ -89,9 +90,8 @@ parser.add_argument('--norm', default=2, type=int, help='feature map norm, defau
 parser.add_argument('--lr', default=0.001, type=float,  # 论文中初始学习率 0.001, 每 10 epoch 除以 10
                     help='initial learning rate')
 parser.add_argument('--rate', default=1, type=int,
-                    help='guide training method, full_lr = low_lr * rate ')
+                    help='guide training method, full_lr = low_lr * rate')
 
-parser.add_argument('--balance', default=2, type=float, help='balancing parameter (default: 2)')
 parser.add_argument('--lr-step', default=10, type=int, help='learning rate step scheduler')
 
 
@@ -103,7 +103,7 @@ def main():
     global best_prec1
     print("=> arch: {}\n"
           "=> init_lr: {}\n"
-          "=> momentum:{}\n"
+          "=> momentum: {}\n"
           "=> weight_decay: {}\n"
           "=> batch-size: {}\n".format(
            args.arch, args.lr, args.momentum, args.weight_decay, args.batch_size,))

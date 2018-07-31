@@ -184,7 +184,6 @@ def guided(args):
                         epoch, i, len(train_loader), batch_time=batch_time,
                         data_time=data_time, full_prec_loss=full_prec_losses, full_prec_top1=full_prec_top1,
                         full_prec_top5=full_prec_top5))
-                print('=>'.format(args.balance, distance))
 
             if summary_writer is not None and (i in summary_point):
                 step = i / interval + (epoch - 1) * log_per_epoch
