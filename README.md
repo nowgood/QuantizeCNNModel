@@ -83,7 +83,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
     --weight-quantized model/W_lr1e-4_epoch2/model_best.pth.tar \
     --save-dir model/AafterW_lr1e-2_epoch35 \
     --data /home/user/wangbin/datasets/ILSVRC2012  \
-    |tee  model/AafterW_lr1e-2_epoch35.log 2>&1
+    |tee  model/AafterW_lr1e-2_epoch35.log
 ```
 
 **resume**
@@ -100,7 +100,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
     --weight-quantized model/W_lr1e-4_epoch2/model_best.pth.tar \
     --save-dir model/AafterW_lr1e-3_epoch35 \
     --data /home/user/wangbin/datasets/ILSVRC2012  \
-    | tee  model/AafterW_lr1e-3_epoch35.log 2>&1
+    | tee  model/AafterW_lr1e-3_epoch35.log
 ```
 
 ### 同时量化权重和激活
@@ -117,7 +117,7 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 python guided.py \
     --lr-step 15 \
     --data /home/user/wangbin/datasets/ILSVRC2012  \
     --save-dir model/AandW_lr0.01_epoch35 \
-    | tee AandW_lr0.01_epoch35.log 2>&1 
+    | tee AandW_lr0.01_epoch35.log
 ```
 
 ### 使用 guidance 信号来同时量化权重和激活
@@ -135,5 +135,5 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python main.py \
     --norm 1 \
     --data /home/user/wangbin/datasets/ILSVRC2012  \
     --save-dir /home/user/wangbin/quantizednn/model/AandW_guided_balance2_lr1e-3_lr1e-3_epoch45 \
-    | tee model/log.WandA_guided_balance2_lr1e-3_lr1e-3_epoch50_qconv 2>&1 
+    | tee model/log.WandA_guided_balance2_lr1e-3_lr1e-3_epoch50_qconv 
 ```

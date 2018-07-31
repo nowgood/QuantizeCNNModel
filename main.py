@@ -103,10 +103,14 @@ def main():
     global best_prec1
     print("=> arch: {}\n"
           "=> init_lr: {}\n"
+          "=> lr-step: {}\n"
           "=> momentum: {}\n"
-          "=> weight_decay: {}\n"
-          "=> batch-size: {}\n".format(
-           args.arch, args.lr, args.momentum, args.weight_decay, args.batch_size,))
+          "=> weight-decay: {}\n"
+          "=> batch-size: {}\n"
+          "=> balance: {}\n"
+          "=> save-dir: {}\n".format(
+           args.arch, args.lr, args.lr_step, args.momentum, args.weight_decay,
+           args.batch_size, args.balance, args.save_dir))
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -166,8 +170,8 @@ def main():
         model.load_state_dict(model_dict)
 
     elif args.mode == 4:
-        print("=> Training mode {}: guided quantize weight and activation from pre-trained\n "
-              "imageNet model {} ".format(args.mode, args.arch))
+        print("=> Training mode {}: guided quantize weight and activation "
+              "from pre-trained imageNet model {}\n ".format(args.mode, args.arch))
 
         quantize_guided.guided(args)
         return

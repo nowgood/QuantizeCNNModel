@@ -70,6 +70,7 @@ def guided(args):
         full_prec_losses = AverageMeter()
         full_prec_top1 = AverageMeter()
         full_prec_top5 = AverageMeter()
+        distance_meter = AverageMeter()
 
         # 状态转化为训练
         low_prec_model.train()
@@ -78,7 +79,7 @@ def guided(args):
         end = time.time()
 
         # 用于控制 tensorboard 的显示频率
-        interval = len(train_loader) / log_per_epoch
+        interval = len(train_loader) // log_per_epoch
         summary_point = [interval * split for split in torch.arange(log_per_epoch)]
 
         for i, (input, target) in enumerate(train_loader):
@@ -146,6 +147,7 @@ def guided(args):
             full_prec_losses.update(full_prec_loss.item(), input.size(0))
             full_prec_top1.update(full_prec_prec1[0], input.size(0))
             full_prec_top5.update(full_prec_prec5[0], input.size(0))
+            distance_meter.update(distance[0], 1)
 
             # compute gradient and do SGD step
             low_prec_optimizer.zero_grad()
@@ -169,11 +171,11 @@ def guided(args):
                       'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                       'Loss {low_prec_loss.val:.4f} ({low_prec_loss.avg:.4f})\t'
                       'Prec@1 {low_prec_top1.val:.3f} ({low_prec_top1.avg:.3f})\t'
-                      'Prec@5 {low_prec_top5.val:.3f} ({low_prec_top5.avg:.3f} balance {balance} '
-                      'distance: {distance})'.format(
+                      'Prec@5 {low_prec_top5.val:.3f} ({low_prec_top5.avg:.3f}) \t'
+                      'distance {distance.val:.3f} ({distance.avg:.3f})'.format(
                         epoch, i, len(train_loader), batch_time=batch_time,
                         data_time=data_time, low_prec_loss=low_prec_losses, low_prec_top1=low_prec_top1,
-                        low_prec_top5=low_prec_top5, balance=args.balance, distance=distance))
+                        low_prec_top5=low_prec_top5, distance=distance_meter))
 
                 print('Epoch: [{0}][{1}/{2}]\t'
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -187,7 +189,7 @@ def guided(args):
 
             if summary_writer is not None and (i in summary_point):
                 step = i / interval + (epoch - 1) * log_per_epoch
-                summary_writer.add_scalar("distance", distance, step)
+                summary_writer.add_scalar("distance", distance_meter.avg, step)
                 summary_writer.add_scalar("loss/low_prec_loss", low_prec_loss, step)
                 summary_writer.add_scalar("train_low_prec/top-1", low_prec_top1.avg, step)
                 summary_writer.add_scalar("train_low_prec/top-5", low_prec_top5.avg, step)
