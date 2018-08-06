@@ -1,11 +1,13 @@
 # coding=utf-8
-import torch
-from torchvision import models
-
+"""
+1. 将卷积层, 除了第一层使用 QWConv2D(不量化输出, 不然性能下降10个百分点), 全部使用QWACvon2D
+2. 线性层全部使用 QWALinear, 线性层所占的参数比例在 resnet18中占据 4.4%, resnet50中占据 8%, 不量化的话会有大约 0.4个百分点的性能提升
+3. 在全连接层送入 softmax 之前, 加一个标量层, 做 softmax 的软化??
+"""
 import torch.nn as nn
 import math
 import torch.utils.model_zoo as model_zoo
-from net.module_quantized import QWAConv2D, QLinear, Scalar
+from net.module_quantized import QWConv2D, QWAConv2D, QWALinear, Scalar
 
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
@@ -102,7 +104,7 @@ class ResNet(nn.Module):
     def __init__(self, block, layers, num_classes=1000):
         self.inplanes = 64
         super(ResNet, self).__init__()
-        self.conv1 = QWAConv2D(3, 64, kernel_size=7, stride=2, padding=3,
+        self.conv1 = QWConv2D(3, 64, kernel_size=7, stride=2, padding=3,
                               bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
@@ -112,7 +114,7 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
         self.avgpool = nn.AvgPool2d(7, stride=1)
-        self.fc = QLinear(512 * block.expansion, num_classes)
+        self.fc = QWALinear(512 * block.expansion, num_classes)  # 修改
         self.scalar = Scalar()  # 修改
 
         for m in self.modules():

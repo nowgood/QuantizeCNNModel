@@ -17,7 +17,6 @@
        3. joint quantize weight and activation from pre-trained imageNet model
        4. guided quantize weight and activation from pre-trained imageNet model
 
-
 """
 
 import argparse
@@ -33,7 +32,7 @@ import torch.utils.data
 import torch.utils.data.distributed
 from utils.train_val import train, save_checkpoint, validate
 from utils.data_loader import load_train_data, load_val_data
-from quantize import quantize_guided
+from quantize import quantize_guided, guided_distance_view
 from net import net_quantize_activation, net_quantize_weight
 from tensorboardX import SummaryWriter
 
@@ -51,7 +50,7 @@ parser.add_argument('--workers', default=16, type=int, metavar='N',  # 修改为
                     help='number of data loading workers (default: 16)')
 parser.add_argument('--epochs', default=35, type=int, metavar='N',
                     help='number of total epochs to run')
-parser.add_argument('--start-epoch', default=1, type=int, metavar='N',
+parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('--batch-size', default=128, type=int,
                     metavar='N', help='mini-batch size (default: 128)')
@@ -60,8 +59,8 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
-parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                    help='path to latest checkpoint (default: none)')
+parser.add_argument('--resume', action='store_true',
+                    help='resume training using save-dir checkpoint (default: False)')
 # 如果是验证模型, 设置为True就好, 训练时值为False
 parser.add_argument('--evaluate', default='', type=str,
                     help='evaluate model on validation set')
@@ -81,7 +80,7 @@ parser.add_argument('--weight-quantized', default='', type=str, help="quantize w
 parser.add_argument('--save-dir', default='model', type=str, help='directory to save trained model', required=True)
 parser.add_argument('--mode', default=3, type=int, help='model quantized mode', required=True)
 parser.add_argument('--norm', default=1, type=int, help='feature map norm, default 1')
-parser.add_argument('--balance', default=2, type=float, help='balancing parameter (default: 2)')
+parser.add_argument('--balance', default=0.2, type=float, help='balancing parameter (default: 0.2)')
 # 论文中初始学习率 0.001, 每 10 epoch 除以 10, 这在只量化权重时候可以
 # 在同时量化权重和激活时, 当使用0.001时, 我们可以观测到权重的持续上升
 # 或许可以将初始学习率调为 0.01, 甚至 0.1
@@ -101,14 +100,15 @@ best_prec1 = 0
 
 def main():
     global best_prec1
-    print("=> arch: {}\n"
-          "=> init_lr: {}\n"
-          "=> lr-step: {}\n"
-          "=> momentum: {}\n"
-          "=> weight-decay: {}\n"
-          "=> batch-size: {}\n"
-          "=> balance: {}\n"
-          "=> save-dir: {}\n".format(
+    print("\n"
+          "=> arch         {: <20}\n"
+          "=> init_lr      {: <20}\n"
+          "=> lr-step      {: <20}\n"
+          "=> momentum     {: <20}\n"
+          "=> weight-decay {: <20}\n"
+          "=> batch-size   {: <20}\n"
+          "=> balance      {: <20}\n"
+          "=> save-dir     {: <20}\n".format(
            args.arch, args.lr, args.lr_step, args.momentum, args.weight_decay,
            args.batch_size, args.balance, args.save_dir))
 
@@ -133,35 +133,39 @@ def main():
 
     # 根据训练模式加载训练模型
     if args.mode == 0:
-        print("=> Training mode {}: full precision training from scratch\n".format(args.mode))
+        print("=> training mode {}: full precision training from scratch\n".format(args.mode))
         model = models.__dict__[args.arch]()
 
     elif args.mode == 1:
-        print("=> Training mode {}: only quantize weight\n".format(args.mode))
-        print("=> loading ImageNet pre-trained model {}".format(args.arch))
-        model = net_quantize_weight.resnet18(pretrained=True)
+        print("=> training mode {}: quantize weight only\n".format(args.mode))
+        print("=> loading imageNet pre-trained model {}".format(args.arch))
+        model = net_quantize_weight.__dict__[args.arch]()
+        model_dict = model.state_dict()
+        init_model = models.__dict__[args.arch](pretrained=True)
+        model_dict.update(init_model.state_dict())
+        model.load_state_dict(model_dict)
+        print("=> loaded imageNet pre-trained model {}".format(args.arch))
 
     elif args.mode == 2:
-        print("=> Training mode {}: quantize activation using quantized weight to init model\n".format(args.mode))
-        model = net_quantize_activation.resnet18()
+        print("=> training mode {}: quantize activation using quantized weight\n".format(args.mode))
+        model = net_quantize_activation.__dict__[args.arch]()
         if os.path.isfile(args.weight_quantized):
-            print("=> Loading weight quantized model '{}'".format(args.weight_quantized))
+            print("=> loading weight quantized model '{}'".format(args.weight_quantized))
             model_dict = model.state_dict()
             quantized_model = torch.load(args.weight_quantized)
             init_dict = {k[7:]: v for k, v in quantized_model['state_dict'].items() if k in model.state_dict()}
             model_dict.update(init_dict)
             model.load_state_dict(model_dict)
-            print("=> Loaded weight_quantized '{}'".format(args.weight_quantized))
+            print("=> loaded weight_quantized '{}'".format(args.weight_quantized))
         else:
-            warnings.warn("=> No weight quantized model found at '{}'".format(args.weight_quantized))
+            warnings.warn("=> no weight quantized model found at '{}'".format(args.weight_quantized))
             return
 
     elif args.mode == 3:
-        print("=> Training mode {}: joint quantize weight and activation\n".format(args.mode))
-
-        # 使用预训练的ResNet18来同时量化网络权重和激活
-        model = net_quantize_activation.resnet18()
-        print("=> Loading imageNet pre-trained model '{}'".format(args.arch))
+        print("=> training mode {}: quantize weight and activation simultaneously\n".format(args.mode))
+        print("=> loading imageNet pre-trained model '{}'".format(args.arch))
+        # 使用预训练的ResNet18来初始化同时量化网络权重和激活
+        model = net_quantize_activation.__dict__[args.arch]()
         # 获取预训练模型参数
         model_dict = model.state_dict()
         init_model = models.__dict__[args.arch](pretrained=True)
@@ -173,10 +177,11 @@ def main():
         print("=> Training mode {}: guided quantize weight and activation "
               "from pre-trained imageNet model {}\n ".format(args.mode, args.arch))
 
-        quantize_guided.guided(args)
+        # quantize_guided.guided(args)
+        guided_distance_view.guided(args)
         return
     else:
-        raise Exception("invalid mode, valid mode is 0~6!!")
+        raise Exception("invalid mode, valid mode is 0~4!!")
 
     if args.gpu is not None:  # 指定GPU
         model = model.cuda(args.gpu)
@@ -206,17 +211,20 @@ def main():
 
     # optionally resume from a checkpoint
     if args.resume:
-        if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
-            checkpoint = torch.load(args.resume)
+        print("\n=> resume training from checkpoint")
+        checkpoint_filename = os.path.join(args.save_dir, "checkpoint.pth.tar")
+
+        if os.path.isfile(checkpoint_filename):
+            print("=> loading checkpoint '{}'".format(checkpoint_filename))
+            checkpoint = torch.load(checkpoint_filename)
             args.start_epoch = checkpoint['epoch']
             best_prec1 = checkpoint['best_prec1']
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})"
-                  .format(args.resume, checkpoint['epoch']))
+                  .format(checkpoint_filename, checkpoint['epoch']))
         else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
+            print("=> no checkpoint found at '{}'".format(checkpoint_filename))
 
     cudnn.benchmark = True
 
@@ -236,8 +244,7 @@ def main():
         else:
             print("No evaluate mode found at '{}'".format(args.evaluate))
             return
-        is_full_precision = True if args.mode == 0 else False
-        validate(model, val_loader, criterion, args.gpu, is_full_precision)
+        validate(model, val_loader, criterion, args.gpu)
         return
 
     train_loader, train_sampler = load_train_data(args.data, args.batch_size, args.workers, args.distributed)
@@ -258,7 +265,7 @@ def main():
         is_best = prec1 > best_prec1
         best_prec1 = max(prec1, best_prec1)
         save_checkpoint({
-            'epoch': epoch + 1,
+            'epoch': epoch+1,
             'arch': args.arch,
             'state_dict': model.state_dict(),
             'best_prec1': best_prec1,

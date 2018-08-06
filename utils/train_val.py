@@ -79,7 +79,7 @@ def train(model, train_loader, criterion, optimizer, gpu, epoch=0,
                    data_time=data_time, loss=losses, top1=top1, top5=top5))
 
         if summary_writer and (i in summary_point):
-            step = i//interval + (epoch - 1) * log_per_epoch
+            step = i//interval + epoch * log_per_epoch
             summary_writer.add_scalar("loss/train_loss", loss, step)
             summary_writer.add_scalar("train/top-1", top1.avg, step)
             summary_writer.add_scalar("train/top-5", top5.avg, step)

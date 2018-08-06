@@ -37,10 +37,26 @@ class QWAConv2D(torch.nn.Conv2d):
                         self.padding, self.dilation, self.groups)
 
 
-class QLinear(nn.Linear):
+class QWLinear(nn.Linear):
 
     def __init__(self, in_features, out_features, bias=True, num_bits=8, num_bits_weight=None, num_bits_grad=None, biprecision=False):
-        super(QLinear, self).__init__(in_features, out_features, bias)
+        super(QWLinear, self).__init__(in_features, out_features, bias)
+
+    def forward(self, input):
+        qweight = quantize_weights_bias(self.weight)
+
+        if self.bias is not None:
+            qbias = quantize_weights_bias(self.bias)
+        else:
+            qbias = None
+
+        return F.linear(input, qweight, qbias)
+
+
+class QWALinear(nn.Linear):
+
+    def __init__(self, in_features, out_features, bias=True):
+        super(QWALinear, self).__init__(in_features, out_features, bias)
 
     def forward(self, input):
         qinput = quantize_activations(input)
@@ -52,7 +68,6 @@ class QLinear(nn.Linear):
             qbias = None
 
         return F.linear(qinput, qweight, qbias)
-
 
 """
 论文中 scalar layer 层设计 (多个 GPU )

@@ -1,11 +1,11 @@
 # coding=utf-8
-import torch
-from torchvision import models
-
+"""
+线性层全部使用 QWLinear
+"""
 import torch.nn as nn
 import math
 import torch.utils.model_zoo as model_zoo
-from net.module_quantized import QWConv2D
+from net.module_quantized import QWConv2D, Scalar, QWLinear
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']
@@ -112,7 +112,8 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
         self.avgpool = nn.AvgPool2d(7, stride=1)
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        self.fc = QWLinear(512 * block.expansion, num_classes)
+        self.scalar = Scalar()
 
         for m in self.modules():
             if isinstance(m, QWConv2D):
@@ -153,6 +154,7 @@ class ResNet(nn.Module):
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
         x = self.fc(x)
+        x = self.scalar(x)
 
         return x
 
