@@ -1,0 +1,22 @@
+## mode 2
+
+--mode 2
+--epochs 30
+--batch-size 64
+--device-ids 0
+--lr 0.001
+--weight-quantized /home/wangbin/Desktop/uisee/model_quantize/W_lr1e-4_epoch10/checkpoint.pth.tar
+--save-dir model
+--data /media/wangbin/8057840b-9a1e-48c9-aa84-d353a6ba1090/ImageNet_ILSVRC2012/ILSVRC2012
+
+
+## mode 4
+
+--mode 4
+--epochs 30
+--batch-size 64
+--device-ids 0
+--balance 100000
+--lr 0.001
+--save-dir model
+--data /media/wangbin/8057840b-9a1e-48c9-aa84-d353a6ba1090/ImageNet_ILSVRC2012/ILSVRC2012

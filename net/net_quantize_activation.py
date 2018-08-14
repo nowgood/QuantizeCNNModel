@@ -7,7 +7,7 @@
 import torch.nn as nn
 import math
 import torch.utils.model_zoo as model_zoo
-from net.module_quantized import QWConv2D, QWAConv2D, QWALinear, Scalar
+from quantize.quantize_module_ import QWConv2D, QWAConv2D, QWALinear, Scalar
 
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
@@ -101,7 +101,7 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, num_classes=1000):
+    def __init__(self, qblock, layers, num_classes=1000):
         self.inplanes = 64
         super(ResNet, self).__init__()
         self.conv1 = QWConv2D(3, 64, kernel_size=7, stride=2, padding=3,
@@ -109,16 +109,16 @@ class ResNet(nn.Module):
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.layer1 = self._make_layer(qblock, 64, layers[0])
+        self.layer2 = self._make_layer(qblock, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(qblock, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(qblock, 512, layers[3], stride=2)
         self.avgpool = nn.AvgPool2d(7, stride=1)
-        self.fc = QWALinear(512 * block.expansion, num_classes)  # 修改
+        self.fc = QWALinear(512 * qblock.expansion, num_classes)  # 修改
         self.scalar = Scalar()  # 修改
 
         for m in self.modules():
-            if isinstance(m, QWAConv2D):
+            if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
             elif isinstance(m, nn.BatchNorm2d):

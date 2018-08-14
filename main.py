@@ -32,9 +32,11 @@ import torch.utils.data
 import torch.utils.data.distributed
 from utils.train_val import train, save_checkpoint, validate
 from utils.data_loader import load_train_data, load_val_data
-from quantize import quantize_guided, guided_distance_view
+from quantize import quantize_guided
+from quantize.quantize_function import quantize_weights_bias
 from net import net_quantize_activation, net_quantize_weight
 from tensorboardX import SummaryWriter
+
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -153,7 +155,14 @@ def main():
             print("=> loading weight quantized model '{}'".format(args.weight_quantized))
             model_dict = model.state_dict()
             quantized_model = torch.load(args.weight_quantized)
-            init_dict = {k[7:]: v for k, v in quantized_model['state_dict'].items() if k in model.state_dict()}
+            init_dict = {}
+            for k, v in quantized_model['state_dict'].items():
+                if k in model.state_dict():
+                    if k.find("conv") != -1 or k.find("fc") != -1:
+                        init_dict[k[7:]] = quantize_weights_bias(v)
+                    else:
+                        init_dict[k[7:]] = v
+
             model_dict.update(init_dict)
             model.load_state_dict(model_dict)
             print("=> loaded weight_quantized '{}'".format(args.weight_quantized))
@@ -178,7 +187,7 @@ def main():
               "from pre-trained imageNet model {}\n ".format(args.mode, args.arch))
 
         # quantize_guided.guided(args)
-        guided_distance_view.guided(args)
+        quantize_guided.guided(args)
         return
     else:
         raise Exception("invalid mode, valid mode is 0~4!!")
@@ -203,10 +212,8 @@ def main():
             model = torch.nn.DataParallel(model, args.device_ids).cuda()
 
     criterion = torch.nn.CrossEntropyLoss().cuda(args.gpu)
-    optimizer = torch.optim.SGD(model.parameters(),
-                                args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
+    optimizer = torch.optim.SGD(model.parameters(), args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr,  weight_decay=args.weight_decay)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_step)
 
     # optionally resume from a checkpoint

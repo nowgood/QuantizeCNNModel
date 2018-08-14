@@ -138,7 +138,7 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 python main.py \
 ### 使用 guidance 信号来同时量化权重和激活
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
+CUDA_VISIBLE_DEVICES=3,4,5,6 python main.py \
     --mode 4 \
     --workers 16 \
     --epochs  35 \
@@ -150,7 +150,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py \
     --norm 1 \
     --data /home/user/wangbin/datasets/ILSVRC2012  \
     --save-dir /home/user/wangbin/quantizednn/model/guided_balance0.1_lr1e-3_rate1_epoch35 \
-    | tee model/guided_balance0.1_lr1e-3_rate1_epoch35.log
+    | tee model/guided_balance0.11_lr1e-3_rate1_epoch35.log
 ```
 
 ```bash

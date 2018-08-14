@@ -79,8 +79,8 @@ your_model.load_state_dict(model_dict)
 ```python
 low_prec_state_dict = low_prec_model.state_dict()
 full_prec_state_dict = full_prec_model.state_dict()
-low_prec_norm = low_prec_state_dict['module.layer4.1.conv1.weight'].norm(p=2) + low_prec_state_dict['module.layer4.1.conv2.weight'].norm(p=2)
-full_prec_norm = full_prec_state_dict['module.layer4.1.conv1.weight'].norm(p=2) + full_prec_state_dict['module.layer4.1.conv2.weight'].norm(p=2)
+low_prec_norm = low_prec_state_dict[qconv1].norm(p=2) + low_prec_state_dict[qlayer4].norm(p=2)
+full_prec_norm = full_prec_state_dict[qconv1].norm(p=2) + full_prec_state_dict[qlayer4].norm(p=2)
 
 l2 = (low_prec_norm + full_prec_norm) * args.balance
 ```

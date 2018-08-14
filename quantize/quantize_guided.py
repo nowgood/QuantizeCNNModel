@@ -29,19 +29,23 @@ def guided(args):
     low_prec_feature_map2 = defaultdict(torch.Tensor)
 
     def full_prec_hook(module, input, output):
-        # 一定要写成 input[0].data.clone()
-        # 而不能写成 input[0].clone(), 否则报错
+        # 一定要写成 input[0]
+        # 而不能写成 input[0].data.clone(), 否则没法加入反向传播
+
+        # 而使用直接使用 input[0] 也会有问题, 如下
         # RuntimeError: Trying to backward through the graph a second time,
         # but the buffers have already been freed. Specify retain_graph=True
         # when calling backward the first time
+        # 即 distance_loss 同时参与高精度和低精度的反向传播, 比如先通过低精度的反向传播之后
+        # 该 distance_loss 的计算图被释放, 然后第二次使用的时候, 找不到对应的计算图和相应的参数
         cudaid = int(repr(output.device)[-2])
-        full_prec_feature_map1[cudaid] = input[0].data.clone()
-        full_prec_feature_map2[cudaid] = output.data.clone()
+        full_prec_feature_map1[cudaid] = input[0]
+        full_prec_feature_map2[cudaid] = output
 
     def low_prec_hook(module, input, output):
         cudaid = int(repr(output.device)[-2])
-        low_prec_feature_map1[cudaid] = input[0].data.clone()
-        low_prec_feature_map2[cudaid] = output.data.clone()
+        low_prec_feature_map1[cudaid] = input[0]
+        low_prec_feature_map2[cudaid] = output
 
     def gpu_config(model):
         if args.gpu is not None:  # 指定GPU
@@ -116,23 +120,15 @@ def guided(args):
             for dim in full_prec_feature_map2[0].size():
                 num_layer4_features *= dim
 
-            for cudaid in full_prec_feature_map1:
-                # 手动将feature map都搬到同一个 GPU 上
-                full_prec_feature_map1[cudaid] = full_prec_feature_map1[cudaid].cuda(args.gpu, non_blocking=True)
-                low_prec_feature_map1[cudaid] = low_prec_feature_map1[cudaid].cuda(args.gpu, non_blocking=True)
-                full_prec_feature_map2[cudaid] = full_prec_feature_map2[cudaid].cuda(args.gpu, non_blocking=True)
-                low_prec_feature_map2[cudaid] = low_prec_feature_map2[cudaid].cuda(args.gpu, non_blocking=True)
-
             for cudaid in low_prec_feature_map1:
-                """
-                RuntimeError: arguments are located on different GPUs
-                解决方法在于手动将feature map都搬到同一个 GPU 上
-                """
+
                 layer3 = (quantize_activations(low_prec_feature_map1[cudaid]) -
                           quantize_activations(full_prec_feature_map1[cudaid])).norm(p=args.norm)/num_layer3_features
                 layer4 = (quantize_activations(low_prec_feature_map2[cudaid]) -
                           quantize_activations(full_prec_feature_map2[cudaid])).norm(p=args.norm)/num_layer4_features
-                distance += (layer3 + layer4) / len(low_prec_feature_map1)
+                # RuntimeError: arguments are located on different GPUs
+                # 解决方法在于手动将 feature map 都搬到同一个GPU, Tensor.cuda(args.gpu, non_blocking=True)
+                distance += (layer3 + layer4).cuda(args.gpu, non_blocking=True) / len(low_prec_feature_map1)
 
             distance *= args.balance
             low_prec_loss = criterion(low_pre_output, target) + distance
@@ -154,8 +150,8 @@ def guided(args):
             low_prec_optimizer.zero_grad()
             full_prec_optimizer.zero_grad()
 
-            low_prec_loss.backward()
-            full_prec_loss.backward()
+            low_prec_loss.backward()  # retain_graph=True
+            # full_prec_loss.backward()
 
             # 第五步, 使用更新的梯度更新权重
             low_prec_optimizer.step()
