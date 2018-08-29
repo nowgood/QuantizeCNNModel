@@ -1,7 +1,7 @@
 # coding=utf-8
 import torch
 import torch.nn as nn
-from quantize.quantize_function import QuantizeWeightOrActivation
+from quantize.quantize_method import QuantizeWeightOrActivation
 import torch.nn.functional as F
 quantize = QuantizeWeightOrActivation()
 

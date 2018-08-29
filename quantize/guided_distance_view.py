@@ -15,7 +15,7 @@ import time
 from utils.train_val import save_checkpoint, validate
 from utils.data_loader import load_train_data, load_val_data
 from utils.meter import AverageMeter, accuracy
-from quantize.quantize_function import quantize_activations
+from quantize.quantize_method import quantize_activations_gemm
 from net import net_quantize_activation
 
 
@@ -122,10 +122,10 @@ def guided(args):
                 RuntimeError: arguments are located on different GPUs
                 解决方法在于手动将feature map都搬到同一个 GPU 上
                 """
-                layer3 = (quantize_activations(low_prec_feature_map1[cudaid]) -
-                          quantize_activations(full_prec_feature_map1[cudaid])).norm(p=args.norm)/num_layer3_features
-                layer4 = (quantize_activations(low_prec_feature_map2[cudaid]) -
-                          quantize_activations(full_prec_feature_map2[cudaid])).norm(p=args.norm)/num_layer4_features
+                layer3 = (quantize_activations_gemm(low_prec_feature_map1[cudaid]) -
+                          quantize_activations_gemm(full_prec_feature_map1[cudaid])).norm(p=args.norm) / num_layer3_features
+                layer4 = (quantize_activations_gemm(low_prec_feature_map2[cudaid]) -
+                          quantize_activations_gemm(full_prec_feature_map2[cudaid])).norm(p=args.norm) / num_layer4_features
                 distance += (layer3 + layer4) / len(low_prec_feature_map1)
 
             distance *= args.balance

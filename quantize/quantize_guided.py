@@ -16,7 +16,7 @@ import warnings
 from utils.train_val import save_checkpoint, validate
 from utils.data_loader import load_train_data, load_val_data
 from utils.meter import AverageMeter, accuracy
-from quantize.quantize_function import quantize_activations
+from quantize.quantize_method import quantize_activations_gemm
 from net import net_quantize_activation
 
 
@@ -122,10 +122,10 @@ def guided(args):
 
             for cudaid in low_prec_feature_map1:
 
-                layer3 = (quantize_activations(low_prec_feature_map1[cudaid]) -
-                          quantize_activations(full_prec_feature_map1[cudaid])).norm(p=args.norm)/num_layer3_features
-                layer4 = (quantize_activations(low_prec_feature_map2[cudaid]) -
-                          quantize_activations(full_prec_feature_map2[cudaid])).norm(p=args.norm)/num_layer4_features
+                layer3 = (quantize_activations_gemm(low_prec_feature_map1[cudaid]) -
+                          quantize_activations_gemm(full_prec_feature_map1[cudaid])).norm(p=args.norm) / num_layer3_features
+                layer4 = (quantize_activations_gemm(low_prec_feature_map2[cudaid]) -
+                          quantize_activations_gemm(full_prec_feature_map2[cudaid])).norm(p=args.norm) / num_layer4_features
                 # RuntimeError: arguments are located on different GPUs
                 # 解决方法在于手动将 feature map 都搬到同一个GPU, Tensor.cuda(args.gpu, non_blocking=True)
                 distance += (layer3 + layer4).cuda(args.gpu, non_blocking=True) / len(low_prec_feature_map1)
@@ -196,7 +196,7 @@ def guided(args):
                 summary_writer.add_scalar("train_full_prec/top-5", full_prec_top5.avg, step)
 
     if args.weight_quantized:
-        print("=> using quantize-weight model '{}'".format(args.arch))
+        print("=> using quantize_tanh-weight model '{}'".format(args.arch))
         full_prec_model = models.__dict__[args.arch](pretrained=True)
         low_prec_model = net_quantize_activation.__dict__[args.arch]()
         if os.path.isfile(args.weight_quantized):
@@ -209,7 +209,7 @@ def guided(args):
             low_prec_model.load_state_dict(model_dict)
             print("=> loaded weight_quantized '{}'".format(args.weight_quantized))
         else:
-            print("=> no  quantize-weight model found at '{}'".format(args.weight_quantized))
+            print("=> no  quantize_tanh-weight model found at '{}'".format(args.weight_quantized))
     else:
         # 代码用于使用预训练的ResNet18来同时量化网络权重和激活
         print("=> using imageNet pre-trained model '{}'".format(args.arch))

@@ -42,7 +42,7 @@ def train(model, train_loader, criterion, optimizer, gpu, epoch=0,
         target = target.cuda(gpu, non_blocking=True)
 
         # if not full_precision:
-        #     model.apply(qw.quantize)  # 第二步, 量化权重, 保存全精度权重和量化梯度
+        #     model.apply(qw.quantize_tanh)  # 第二步, 量化权重, 保存全精度权重和量化梯度
 
         output = model(data)
         loss = criterion(output, target)
@@ -107,7 +107,7 @@ def validate(model, val_loader, criterion, gpu, epoch=0, summary_writer=None, na
 
     # if not full_precision:
     #     qw = QuantizeWeightOrActivation()  # 1, 创建量化器
-    #     model.apply(qw.quantize)  # 2, 量化权重, 保存全精度权重和量化梯度
+    #     model.apply(qw.quantize_tanh)  # 2, 量化权重, 保存全精度权重和量化梯度
 
     with torch.no_grad():
         start = time.time()

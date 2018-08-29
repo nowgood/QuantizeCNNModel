@@ -3,3 +3,4 @@ torchvision
 tensorboardx
 tensorflow
 opencv-python
+numpy

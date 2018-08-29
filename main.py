@@ -6,16 +6,16 @@
 
 2. 权重和激活同时量化注意事项:
     1). 学习率设置不能大于 0.01(学习率最大设置 0.01), 当学习率设置为0.01时, 模型可以很好的微调,
-    2). 当学习率设置为0.1时, 训练几十个batch之后, 准确率为 千分之一 和 千分之五
+    2). 当学习率设置为 0.1 时, 训练几十个batch之后, 准确率为 千分之一 和 千分之五
     3). 学习率设置为 0.01 时,大约 5~8 epoch降低一次学习率(除以10)比较好, 然后训练大约 30~40 epoch就好
     4). 当学习率设置为 0.001 时, 大约 14~16 epoch 降低一次学习率比较好, 然后训练大约 30~40 epoch就好
 
 3. 训练模式(mode):
        0: full precision training from scratch
-       1: only quantize weight
-       2. quantize activation using quantized weight to init model
-       3. joint quantize weight and activation from pre-trained imageNet model
-       4. guided quantize weight and activation from pre-trained imageNet model
+       1: only quantize_tanh weight
+       2. quantize_tanh activation using quantized weight to init model
+       3. joint quantize_tanh weight and activation from pre-trained imageNet model
+       4. guided quantize_tanh weight and activation from pre-trained imageNet model
 
 """
 
@@ -33,7 +33,7 @@ import torch.utils.data.distributed
 from utils.train_val import train, save_checkpoint, validate
 from utils.data_loader import load_train_data, load_val_data
 from quantize import quantize_guided
-from quantize.quantize_function import quantize_weights_bias
+from quantize.quantize_method import quantize_weights_bias_gemm
 from net import net_quantize_activation, net_quantize_weight
 from tensorboardX import SummaryWriter
 
@@ -78,11 +78,12 @@ parser.add_argument('--gpu', default=None, type=int, help='GPU id to use.')
 
 parser.add_argument('--device-ids', default=[0], type=int, nargs='+',
                     help='GPU ids to be used e.g 0 1 2 3')
-parser.add_argument('--weight-quantized', default='', type=str, help="quantize weight model path")
+parser.add_argument('--weight-quantized', default='', type=str, help="quantize_tanh weight model path")
 parser.add_argument('--save-dir', default='model', type=str, help='directory to save trained model', required=True)
 parser.add_argument('--mode', default=3, type=int, help='model quantized mode', required=True)
+# l1 norm balance 设置为1或者0.1比较好, l2 norm balance 设置为100(~0.034) ~ 500 比较好
 parser.add_argument('--norm', default=1, type=int, help='feature map norm, default 1')
-parser.add_argument('--balance', default=0.2, type=float, help='balancing parameter (default: 0.2)')
+parser.add_argument('--balance', default=100, type=float, help='balancing parameter (default: 100)')
 # 论文中初始学习率 0.001, 每 10 epoch 除以 10, 这在只量化权重时候可以
 # 在同时量化权重和激活时, 当使用0.001时, 我们可以观测到权重的持续上升
 # 或许可以将初始学习率调为 0.01, 甚至 0.1
@@ -159,7 +160,7 @@ def main():
             for k, v in quantized_model['state_dict'].items():
                 if k in model.state_dict():
                     if k.find("conv") != -1 or k.find("fc") != -1:
-                        init_dict[k[7:]] = quantize_weights_bias(v)
+                        init_dict[k[7:]] = quantize_weights_bias_gemm(v)
                     else:
                         init_dict[k[7:]] = v
 

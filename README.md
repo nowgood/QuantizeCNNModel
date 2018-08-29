@@ -135,6 +135,21 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 python main.py \
     | tee AandW_1e-3_epoch35.log
 ```
 
+```
+CUDA_VISIBLE_DEVICES=3,4,5,6 python main.py \
+    --mode 3 \
+    --arch resnet18 \
+    --workers 16 \
+    --epochs  50 \
+    --batch-size 512 \
+    --device-ids 0 1 2 3 \
+    --lr 0.1 \
+    --lr-step 15 \
+    --data /home/user/wangbin/datasets/ILSVRC2012  \
+    --save-dir model/AandW_gemm_lr1e-1_epoch50 \
+    | tee AandW_gemm_1e-1_epoch50.log
+```
+
 ### 使用 guidance 信号来同时量化权重和激活
 
 ```bash

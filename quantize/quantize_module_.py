@@ -1,7 +1,7 @@
 # coding=utf-8
 import torch
 import torch.nn as nn
-from quantize.quantize_function import quantize_weights_bias, quantize_activations
+from quantize.quantize_method import quantize_weights_bias_gemm, quantize_activations_gemm
 import torch.nn.functional as F
 
 
@@ -17,7 +17,7 @@ class QWConv2D(torch.nn.Conv2d):
         """
         关键在于使用函数 F.conv2d, 而不是使用模块 nn.ConV2d
         """
-        qweight = quantize_weights_bias(self.weight)
+        qweight = quantize_weights_bias_gemm(self.weight)
         return F.conv2d(input, qweight, self.bias, self.stride,
                         self.padding, self.dilation, self.groups)
 
@@ -31,8 +31,8 @@ class QWAConv2D(torch.nn.Conv2d):
         # nn.init.constant_(self.weight, 1)
 
     def forward(self, input):
-        qweight = quantize_weights_bias(self.weight)
-        qinput = quantize_activations(input)
+        qweight = quantize_weights_bias_gemm(self.weight)
+        qinput = quantize_activations_gemm(input)
         return F.conv2d(qinput, qweight, self.bias, self.stride,
                         self.padding, self.dilation, self.groups)
 
@@ -43,10 +43,10 @@ class QWLinear(nn.Linear):
         super(QWLinear, self).__init__(in_features, out_features, bias)
 
     def forward(self, input):
-        qweight = quantize_weights_bias(self.weight)
+        qweight = quantize_weights_bias_gemm(self.weight)
 
         if self.bias is not None:
-            qbias = quantize_weights_bias(self.bias)
+            qbias = quantize_weights_bias_gemm(self.bias)
         else:
             qbias = None
 
@@ -59,11 +59,11 @@ class QWALinear(nn.Linear):
         super(QWALinear, self).__init__(in_features, out_features, bias)
 
     def forward(self, input):
-        qinput = quantize_activations(input)
-        qweight = quantize_weights_bias(self.weight)
+        qinput = quantize_activations_gemm(input)
+        qweight = quantize_weights_bias_gemm(self.weight)
 
         if self.bias is not None:
-            qbias = quantize_weights_bias(self.bias)
+            qbias = quantize_weights_bias_gemm(self.bias)
         else:
             qbias = None
 
@@ -122,13 +122,13 @@ if __name__ == "__main__":
     # 直接求梯度
     a = torch.ones(3, 3, requires_grad=True).float()
     w = nn.init.constant_(torch.empty(3, 3, requires_grad=True), 1)
-    qw = quantize_weights_bias(w)
+    qw = quantize_weights_bias_gemm(w)
 
     z = (qw * a).sum()
     z.backward()
     print("求权重梯度", w.grad)
 
     # 验证量化梯度
-    qa = quantize_weights_bias(a).sum()
+    qa = quantize_weights_bias_gemm(a).sum()
     qa.backward()
     print("直接求量化权重梯度", a.grad)

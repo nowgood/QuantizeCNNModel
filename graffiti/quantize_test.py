@@ -1,7 +1,7 @@
 # coding=utf-8
 import torch
 from net.simple_net import Net
-from quantize.quantize_function import QuantizeWeightOrActivation
+from quantize.quantize_method import QuantizeWeightOrActivation
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt

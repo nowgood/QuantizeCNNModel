@@ -3,7 +3,7 @@ import torch.nn as nn
 import math
 import torch.utils.model_zoo as model_zoo
 from quantize.quantize_module_ import QWConv2D, QWAConv2D, QWALinear, Scalar
-from quantize.quantize_function import quantize_activations
+from quantize.quantize_method import quantize_activations_gemm
 
 """
 guide 两个模型一起训练的两种思路,
@@ -356,8 +356,8 @@ class ResNet(nn.Module):
         x = self.fc(x)
 
         pair_distance = nn.PairwiseDistance(p=1)
-        distance = pair_distance(quantize_activations(ql3), quantize_activations(l3))/self.num_features(l3.size())\
-                   + pair_distance(quantize_activations(ql4), quantize_activations(l4)/self.num_features(l4.size()))
+        distance = pair_distance(quantize_activations_gemm(ql3), quantize_activations_gemm(l3)) / self.num_features(l3.size()) \
+                   + pair_distance(quantize_activations_gemm(ql4), quantize_activations_gemm(l4) / self.num_features(l4.size()))
 
         return qx, x, distance
 

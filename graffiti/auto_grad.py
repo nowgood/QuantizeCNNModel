@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from net import simple_net
 import torch.optim as optim
-from quantize.quantize_function import QuantizeWeightOrActivation
+from quantize.quantize_method import QuantizeWeightOrActivation
 import queue
 
 qw = QuantizeWeightOrActivation()
