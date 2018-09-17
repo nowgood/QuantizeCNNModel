@@ -18,7 +18,11 @@ class QWConv2D(torch.nn.Conv2d):
         关键在于使用函数 F.conv2d, 而不是使用模块 nn.ConV2d
         """
         qweight = quantize_weights_bias_gemm(self.weight)
-        return F.conv2d(input, qweight, self.bias, self.stride,
+        if self.bias is not None:
+            qbias = quantize_weights_bias_gemm(self.bias)
+        else:
+            qbias = None
+        return F.conv2d(input, qweight, qbias, self.stride,
                         self.padding, self.dilation, self.groups)
 
 
@@ -32,14 +36,19 @@ class QWAConv2D(torch.nn.Conv2d):
 
     def forward(self, input):
         qweight = quantize_weights_bias_gemm(self.weight)
+        if self.bias is not None:
+            qbias = quantize_weights_bias_gemm(self.bias)
+        else:
+            qbias = None
         qinput = quantize_activations_gemm(input)
-        return F.conv2d(qinput, qweight, self.bias, self.stride,
+        return F.conv2d(qinput, qweight, qbias, self.stride,
                         self.padding, self.dilation, self.groups)
 
 
 class QWLinear(nn.Linear):
 
-    def __init__(self, in_features, out_features, bias=True, num_bits=8, num_bits_weight=None, num_bits_grad=None, biprecision=False):
+    def __init__(self, in_features, out_features, bias=True, num_bits=8, num_bits_weight=None,
+                 num_bits_grad=None, biprecision=False):
         super(QWLinear, self).__init__(in_features, out_features, bias)
 
     def forward(self, input):
@@ -68,6 +77,7 @@ class QWALinear(nn.Linear):
             qbias = None
 
         return F.linear(qinput, qweight, qbias)
+
 
 """
 论文中 scalar layer 层设计 (多个 GPU )

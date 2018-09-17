@@ -85,7 +85,7 @@ def train(model, train_loader, criterion, optimizer, gpu, epoch=0,
             summary_writer.add_scalar("train/top-5", top5.avg, step)
 
 
-def validate(model, val_loader, criterion, gpu, epoch=0, summary_writer=None, name_prefix=None, print_freq=20):
+def validate(model, val_loader, criterion, gpu=0, epoch=0, summary_writer=None, name_prefix=None, print_freq=20):
 
     batch_time = AverageMeter()
     losses = AverageMeter()

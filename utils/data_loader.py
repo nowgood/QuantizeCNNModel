@@ -35,7 +35,7 @@ def load_train_data(data_dir, batch_size, workers, distributed):
     return train_loader, train_sampler
 
 
-def load_val_data(data_dir, batch_size, workers):
+def load_val_data(data_dir, batch_size=64, workers=8):
     valdir = os.path.join(data_dir, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
